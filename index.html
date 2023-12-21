@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=0" />
+    <title>RAMS Scriber</title>
+    <script src="./assets/js/jquery-3.7.1.min.js"></script>
+    <script src="./assets/js/externals.js"></script>
+    <script src="./assets/js/eosjs-api.js"></script>
+    <script src="./assets/js/eosjs-jsonrpc.js"></script>
+    <script src="./assets/js/eosjs-jssig.js"></script>
+    <script src="./assets/js/eosjs-numeric.js"></script>
+    <script src="./assets/js/eosjs-ecc.min.js"></script>
+    <script src="./assets/js/md5.min.js"></script>
+    <script src="./assets/js/jquery.base64.js"></script>
+    <script src="./assets/js/vue.js"></script>
+    <script src="./assets/js/axios.min.js"></script>
+    <script src="./assets/js/element.js"></script>
+    <script src="./assets/js/index.js"></script>
+    <link href="./assets/css/index.css" rel="stylesheet">
+    <link href="./assets/css/index-sm.css" rel="stylesheet">
+    <link href="./assets/css/element.css" rel="stylesheet">
+</head>
+
+<body>
+    <div id="app" v-loading="loading" :element-loading-text="loadingText" @click="showNode = false">
+        <header>
+            <div class="header">
+                <div class="header-left">
+                    <img src="./assets/images/logo.png" alt="">
+                    <span>RAMS</span>
+                </div>
+                <div class="header-center">
+                    <a :class="step == 1 ? 'active' : ''" href="javascript: void(0)" @click="step = 1">Import
+                        Account</a>
+                    <a :class="step == 2 ? 'active' : ''" href="javascript: void(0)" @click="step = 2">SCRIBER</a>
+                </div>
+                <div class="header-right">
+                    <div class="select" @click.stop="showNode = !showNode">
+                        <span class="node">RPC Node: </span>
+                        <div class="select_box">
+                            <span class="select_value">{{endpoint}}</span>
+                            <img src="./assets/images/arrow.png" :class="showNode ? 'rotate':''" class="arrow_img"
+                                alt="">
+                        </div>
+                        <ul :style="showNode ? 'height: 300px':'height: 0px'">
+                            <li v-for="(item, index) in nodeList" :key="index" @click.stop="changeEndpoint(item)">
+                                <el-radio v-model="endpoint" :label="item.url" fill="#3FC48A"></el-radio>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="banner">
+                <img src="./assets/images/banner.png" class="banner_pc" alt="">
+                <img src="./assets/images/banner-sm.png" class="banner_sm" alt="">
+                <p class="countdown">{{countdownText != '00:00:00' ? countdownText : 'INSCRIBE NOW'}}</p>
+            </div>
+        </header>
+        <div class="content">
+            <div class="step" v-if="step == 1">
+                <div class="step_title">
+                    <img src="./assets/images/1.png" class="title_img" alt="">
+                    <p>Import Account</p>
+                </div>
+                <div class="step_info">
+                    <div class="info">
+                        <span class="info_name">Account：</span>
+                        <el-input v-model="account" placeholder="Please input your account" size="normal" clearable
+                            @change="isFinish = false"></el-input>
+                    </div>
+                    <div class="info">
+                        <span class="info_name">Private Key：</span>
+                        <el-input type="textarea" :rows="3" v-model="privateKey"
+                            placeholder="Please input your privateKey" size="normal" clearable
+                            @change="isFinish = false"></el-input>
+                    </div>
+                    <div class="btn_box" style="margin: 20px 0 0 0;">
+                        <div class="btn blue" :class="isFinish ? 'disabled':''" @click="finished"
+                            v-loading="btnLoading.finished">Import</div>
+                    </div>
+                </div>
+            </div>
+            <div class="step" v-else>
+                <div class="step_title">
+                    <img src="./assets/images/2.png" class="title_img" alt="">
+                    <p>Scriber：</p>
+                </div>
+                <p class="step_eos">
+                    <span>{{account}}</span>
+                    <span>{{accountInfo.core_liquid_balance}}</span>
+                </p>
+                <div class="step_cpu">
+                    <div class="cpu_item">
+                        <span class="cpu_name">CPU：</span>
+                        <span>{{accountInfo.cpu}}</span>
+                        <div class="cpu_btn" @click="buyResource(1)" v-loading="btnLoading.powerUp">Buy CPU</div>
+                    </div>
+                    <div class="cpu_item">
+                        <span class="cpu_name">NET：</span>
+                        <span>{{accountInfo.net}}</span>
+                        <div class="cpu_btn" @click="buyResource(2)" v-loading="btnLoading.buyNet">Buy NET</div>
+                    </div>
+                    <div class="cpu_item">
+                        <span class="cpu_name">RAM：</span>
+                        <span>{{accountInfo.ram}}</span>
+                        <div class="cpu_btn" @click="buyRam()" v-loading="btnLoading.buyRam">Buy RAM</div>
+                    </div>
+                </div>
+                <div class="step_info">
+                    <p>data: {{JSON.stringify(brcMemo)}}</p>
+                </div>
+                <div class="btn_box">
+                    {{allMintNum + ' / ' + totalSupply}} （{{(allMintNum*100/totalSupply).toFixed(4)}}%）
+                </div>
+                <div class="btn_box">
+                    <div class="btn" :class="isMint ? 'red':''" @click="startMint" v-loading="btnLoading.mint">
+                        {{isMint ? 'Stop':'Start'}}</div>
+                </div>
+                <p class="quantity">
+                    Your inscrb EIRC20 Quantity: <span>{{suceessNum}}</span>
+                </p>
+                <div class="btn_box">
+                    <div class="btn reset_red" @click="reset">Reset</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    const app = new Vue({
+        el: "#app",
+        data: {
+            nodeList: [
+                {
+                    url: 'https://api.eosflare.io', // https://eospush.tokenpocket.pro
+                    api: 'api2'
+                },
+                {
+                    url: 'https://eospush.tokenpocket.pro',
+                    api: 'api3'
+                },
+                {
+                    url: 'https://api.fwnw.com',
+                    api: 'api4'
+                },
+                {
+                    url: 'https://eos.greymass.com', // https://eospush.tokenpocket.pro
+                    api: 'api5'
+                },
+                {
+                    url: 'https://nodes.get-scatter.com', // https://eospush.tokenpocket.pro
+                    api: 'api6'
+                },
+                {
+                    url: 'https://api.eossweden.se', // https://eospush.tokenpocket.pro
+                    api: 'api7'
+                },
+                {
+                    url: 'https://api.eoslaomao.com', // https://eospush.tokenpocket.pro
+                    api: 'api8'
+                },
+                {
+                    url: 'https://eos.api.eosnation.io', // https://eospush.tokenpocket.pro
+                    api: 'api9'
+                },
+                {
+                    url: 'https://eospush.mytokenpocket.vip',
+                    api: 'api10'
+                },
+                {
+                    url: 'https://api-mainnet.starteos.io',
+                    api: 'api11'
+                },
+                {
+                    url: 'https://api.main.alohaeos.com',
+                    api: 'api12'
+                },
+                {
+                    url: 'https://api.eossupport.io',
+                    api: 'api13'
+                },
+                {
+                    url: 'https://nodeos.eospapa.com',
+                    api: 'api14'
+                },
+                {
+                    url: 'https://node1.defibox.xyz',
+                    api: 'api15'
+                },
+                {
+                    url: 'https://node2.defibox.xyz',
+                    api: 'api16'
+                },
+                {
+                    url: 'https://node3.defibox.xyz',
+                    api: 'api17'
+                },
+                {
+                    url: 'https://api.web3name.one',
+                    api: 'api18'
+                },
+            ],
+            endpoint: 'https://eospush.mytokenpocket.vip',
+            endpointApi: 'https://eospush.mytokenpocket.vip',
+            // account: 'xsddb2fapmai',
+            // privateKey: '5JS2Ub8NRk9m1XgeZTtT66zw6YcFs33nSostXFbfi5mPMVxb2Pa',
+            account: '',
+            privateKey: '',
+            rpc: null,
+            signatureProvider: null,
+            api: null,
+            loading: false,
+            loadingText: 'Loading...',
+            isMint: false,
+            interval: null,
+            intervalTIme: 1000,
+            suceessNum: 0,
+            cacheKey: '_ot',
+            accountInfo: {},
+            isFinish: false,
+            mwContract: '',
+            brcMemo: { "p": "eirc-20", "op": "mint", "tick": "rams", "amt": 10 },
+            btnLoading: {
+                finished: false,
+                powerUp: false,
+                mint: false,
+                buyNet: false,
+                buyRam: false
+            },
+            step: 1,
+            totalSupply: 100000000,
+            allMintNum: 0,
+            showNode: false,
+            countdownText: '00:00:00'
+        },
+        async created() {
+            if (localStorage.getItem('node')) {
+                this.endpointApi = localStorage.getItem('node')
+            }
+            this.countdown()
+            this.rpc = new eosjs_jsonrpc.JsonRpc(this.endpointApi);
+            const data = localStorage.getItem(this.cacheKey)
+            if (data) {
+                const decode = $.base64.decode(data)
+                const { account, privateKey } = JSON.parse(decode)
+                this.account = account
+                this.privateKey = privateKey
+                this.signatureProvider = new eosjs_jssig.JsSignatureProvider([this.privateKey]);
+                this.api = new eosjs_api.Api({ rpc: this.rpc, signatureProvider: this.signatureProvider });
+                await this.finished()
+            }
+        },
+        methods: {
+            changeEndpoint(node) {
+                this.endpoint = node.url
+                this.endpointApi = node.url
+                this.rpc = new eosjs_jsonrpc.JsonRpc(this.endpointApi);
+                localStorage.setItem('node', this.endpointApi)
+                this.showNode = false
+                if (this, signatureProvider) {
+                    this.api = new eosjs_api.Api({ rpc: this.rpc, signatureProvider: this.signatureProvider });
+                }
+            },
+            async finished(e) {
+                if (this.btnLoading.finished) {
+                    return
+                }
+                if (this.isFinish) {
+                    return
+                }
+                if (!this.account || !this.privateKey) {
+                    this.$message.success('Please Input Your Account And Private Key First.')
+                    return;
+                }
+                this.btnLoading.finished = true
+                try {
+                    await this.getAccountInfo()
+                    this.$message.success('Import Account Success.')
+                } catch (e) {
+                    this.$message.error('Account Is Not Exist')
+                    console.log(e)
+                    this.btnLoading.finished = false
+                    return
+                }
+                const data = {
+                    'account': this.account,
+                    'privateKey': this.privateKey
+                }
+                this.signatureProvider = new eosjs_jssig.JsSignatureProvider([this.privateKey]);
+                this.api = new eosjs_api.Api({ rpc: this.rpc, signatureProvider: this.signatureProvider });
+                const encode = $.base64.encode(JSON.stringify(data));
+                localStorage.setItem(this.cacheKey, encode)
+                this.isFinish = true
+                this.step = 2
+                this.btnLoading.finished = false
+                this.getMintNum()
+                this.getAllMintNum()
+            },
+            async getAccountInfo() {
+                const result = await this.rpc.get_account(this.account)
+                this.accountInfo = result;
+                if (this.accountInfo.cpu_limit) {
+                    const { max, available, current_used } = this.accountInfo.cpu_limit
+                    const maxnum = Number((max / 1000).toFixed(2))
+                    const availablenum = Number((available / 1000).toFixed(2))
+                    const used = Number((current_used / 1000).toFixed(2))
+                    this.accountInfo.cpu = `${used}ms/${maxnum}ms`
+                    this.accountInfo.availableCpu = availablenum;
+                }
+                if (this.accountInfo.net_limit) {
+                    const { max, available, current_used } = this.accountInfo.net_limit
+                    const maxnum = Number((max / 1024).toFixed(2))
+                    const availablenum = Number((available / 1024).toFixed(2))
+                    const used = Number((current_used / 1000).toFixed(2))
+                    this.accountInfo.net = `${used}kb/${maxnum}kb`
+                    this.accountInfo.availableNet = availablenum;
+                }
+                const rqnum = Number((this.accountInfo.ram_quota / 1024).toFixed(2))
+                const runum = Number((this.accountInfo.ram_usage / 1024).toFixed(2))
+                this.accountInfo.ram = `${runum}kb/${rqnum}kb`
+            },
+            async buyResource(type) {
+                const data = localStorage.getItem(this.cacheKey)
+                if (!data || !this.isFinish) {
+                    this.$message.error('Please create an account and finished first')
+                    return;
+                }
+
+                let cpu = 3142875, net = 130953090
+                if (type == 1) {
+                    if (this.btnLoading.powerUp) {
+                        return
+                    }
+                    this.btnLoading.powerUp = true
+                    net = this.accountInfo.availableNet > 0 ? 0 : 130953090
+                } else {
+                    if (this.btnLoading.buyNet) {
+                        return
+                    }
+                    this.btnLoading.buyNet = true
+                    cpu = this.accountInfo.availableCpu > 0 ? 0 : 3142875
+                }
+                // 购买
+                const params = {
+                    actions: [{
+                        account: 'eosio',
+                        name: 'powerup',
+                        authorization: [{
+                            actor: this.account,//当前用户
+                            permission: 'active',
+                        }],
+                        data: {
+                            payer: this.account, // 表示租赁的账号
+                            receiver: this.account, // 表示接收租赁的账号
+                            days: 1, // 固定值
+                            net_frac: net, // 固定值
+                            cpu_frac: cpu, // 固定值
+                            max_payment: '0.1000 EOS' // 固定值
+                        }
+                    }]
+                }
+                console.log('交易参数: ', params)
+                this.api.transact(params, { blocksBehind: 3, expireSeconds: 30 }).then((result) => {
+                    console.log("result, ", result)
+                    if (result && result.transaction_id) {
+                        setTimeout(async () => {
+                            await this.getAccountInfo()
+                            if (type == 1) {
+                                this.btnLoading.powerUp = false
+                            } else {
+                                this.btnLoading.buyNet = false
+                            }
+                        }, 2000);
+                    }
+                }).catch((e) => {
+                    console.log('error', e)
+                    if (type == 1) {
+                        this.btnLoading.powerUp = false
+                    } else {
+                        this.btnLoading.buyNet = false
+                    }
+                });
+            },
+            async buyRam() {
+                if (this.btnLoading.buyRam) {
+                    return
+                }
+                const data = localStorage.getItem(this.cacheKey)
+                if (!data || !this.isFinish) {
+                    this.$message.error('Please create an account and finished first')
+                    return;
+                }
+                this.btnLoading.buyRam = true
+                // 购买
+                const params = {
+                    actions: [{
+                        account: 'eosio',
+                        name: 'buyram',
+                        authorization: [{
+                            actor: this.account,//当前用户
+                            permission: 'active',
+                        }],
+                        data: {
+                            payer: this.account, // 表示租赁的账号
+                            receiver: this.account, // 表示接收租赁的账号
+                            quant: '1.0000 EOS', //购买金额（固定值）
+                        }
+                    }]
+                }
+                console.log('交易参数: ', params)
+                this.api.transact(params, { blocksBehind: 3, expireSeconds: 30 }).then((result) => {
+                    console.log("result, ", result)
+                    if (result && result.transaction_id) {
+                        setTimeout(async () => {
+                            await this.getAccountInfo()
+                            this.btnLoading.buyRam = false
+                        }, 2000);
+                    }
+                }).catch((e) => {
+                    console.log('error', e)
+                    this.btnLoading.buyRam = false
+                })
+            },
+            async startMint() {
+                if (this.btnLoading.mint) {
+                    return
+                }
+                const data = localStorage.getItem(this.cacheKey)
+                if (!data || !this.isFinish) {
+                    this.$message.error('Please create an account and finished first')
+                    return;
+                }
+                if (this.isMint) {
+                    clearInterval(this.interval)
+                    this.isMint = false
+                    return;
+                }
+                this.btnLoading.mint = true
+                try {
+                    await this.getAccountInfo()
+                    const balance = this.accountInfo.core_liquid_balance.split(' ')[0]
+                    if (balance < 0.1) {
+                        this.$message.error('EOS Balance Not Enough')
+                        clearInterval(this.interval)
+                        this.isMint = false
+                        return;
+                    }
+                } catch (e) {
+                    this.$message.error('Account Not Exist')
+                    clearInterval(this.interval)
+                    this.isMint = false
+                    console.log(e)
+                    return
+                } finally {
+                    this.btnLoading.mint = false
+                }
+                this.isMint = true
+                this.interval = setInterval(async () => {
+                    // 发起转账
+                    await this.mint(this.mwContract, this.account, JSON.stringify(this.brcMemo))
+                    this.getMintNum()
+                    this.getAllMintNum()
+                }, this.intervalTIme, true);
+            },
+            async reset() {
+                // 是否确认
+                this.$confirm('After clearing, it cannot be restored. Please confirm that the account information has been saved', 'Warning', {
+                    confirmButtonText: 'Confirm',
+                    cancelButtonText: 'Cancel',
+                    type: 'warning'
+                }).then(() => {
+                    const account = `Account: ${this.account}, privateKey: ${this.privateKey}`
+                    this.onCopy(account, false)
+                    localStorage.clear()
+                    this.isFinish = false
+                    this.account = ''
+                    this.privateKey = ''
+                    this.step = 1
+                })
+            },
+            async getMintNum() {
+                const result = await this.rpc.get_table_rows({
+                    json: true,
+                    limit: 1,
+                    code: this.mwContract,
+                    scope: this.mwContract,
+                    table: 'users',
+                    lower_bound: this.account,
+                    upper_bound: this.account,
+                });
+                this.suceessNum = result.rows && result.rows[0]?.mintcount || 0
+            },
+            onCopy(text, showTip = true) {
+                console.log(text)
+                let inputDom = document.createElement("input");
+                inputDom.setAttribute("readonly", "readonly");
+                inputDom.value = text;
+                document.body.appendChild(inputDom);
+                inputDom.select();
+                document.execCommand("Copy");
+                inputDom.style.display = "none";
+                inputDom.remove();
+                showTip && this.$message.success('Copy Success')
+            },
+            async mint(constract, from, memo) {
+                const params = {
+                    actions: [{
+                        account: constract,
+                        name: "mint",
+                        authorization: [{
+                            actor: from,//当前用户
+                            permission: 'active',
+                        }],
+                        data: {
+                            from,
+                            memo,
+                        },
+                    }]
+                }
+                console.log("params, ", params)
+                this.api.transact(params, { blocksBehind: 3, expireSeconds: 30 }).then((result) => {
+                    console.log("result, ", result)
+                    if (result && result.transaction_id) {
+                        tid = result.transaction_id
+                    }
+                }).catch((e) => {
+                    console.log('error', e)
+                });
+            },
+            async getAllMintNum() {
+                const result = await this.rpc.get_table_rows({
+                    json: true,
+                    limit: 1,
+                    code: this.mwContract,
+                    scope: this.mwContract,
+                    table: 'mints',
+                    reverse: true
+                });
+                const mintNum = result.rows && result.rows[0]?.id || 0
+                this.allMintNum = mintNum
+            },
+            // 倒计时方法
+            countdown() {
+                // 目标日期时间戳
+                const end = Date.parse(new Date('2023-12-22 21:00:00'))
+                // 当前时间戳
+                const now = Date.parse(new Date())
+                // 相差的毫秒数
+                const msec = end - now
+
+                //   console.log(msec)
+                if (msec < 0) return
+
+                // 计算时分秒数
+                let hr = parseInt(msec / 1000 / 60 / 60)
+                let min = parseInt((msec / 1000 / 60) % 60)
+                let sec = parseInt((msec / 1000) % 60)
+                // 个位数前补零
+                const hour = hr > 9 ? hr : '0' + hr
+                const minute = min > 9 ? min : '0' + min
+                const second = sec > 9 ? sec : '0' + sec
+                // 赋值
+                this.countdownText = `${hour}:${minute}:${second}`
+                if (min >= 0 && sec >= 0) {
+                    //倒计时结束关闭订单
+                    if (min == 0 && sec == 0) {
+                        return
+                    }
+                    // 一秒后递归
+                    setTimeout(() => {
+                        this.countdown()
+                    }, 1000)
+                }
+            },
+        },
+        beforeDestroy() {
+            clearInterval(this.interval)
+        }
+    })
+</script>
+
+</html>
