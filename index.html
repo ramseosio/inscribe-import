@@ -18,8 +18,8 @@
     <script src="./assets/js/axios.min.js"></script>
     <script src="./assets/js/element.js"></script>
     <script src="./assets/js/index.js"></script>
-    <link href="./assets/css/index.css" rel="stylesheet">
-    <link href="./assets/css/index-sm.css" rel="stylesheet">
+    <link href="./assets/css/index.css?_t=3" rel="stylesheet">
+    <link href="./assets/css/index-sm.css?_t=3" rel="stylesheet">
     <link href="./assets/css/element.css" rel="stylesheet">
 </head>
 
@@ -56,6 +56,10 @@
                 <img src="./assets/images/banner.png" class="banner_pc" alt="">
                 <img src="./assets/images/banner-sm.png" class="banner_sm" alt="">
                 <p class="countdown">{{countdownText != '00:00:00' ? countdownText : 'INSCRIBE NOW'}}</p>
+                <el-radio-group class="tabs" v-model="step" style="margin-bottom: 30px;">
+                    <el-radio-button label="1" @click="step = 1">Import Account</el-radio-button>
+                    <el-radio-button label="2" @click="step = 2">Inscribe</el-radio-button>
+                </el-radio-group>
             </div>
         </header>
         <div class="content">
@@ -65,6 +69,7 @@
                     <p>Import Account</p>
                 </div>
                 <div class="step_info">
+                    <p class="memo">Never import your active or owner key here. It is risky!</p>
                     <div class="info">
                         <span class="info_name">Account：</span>
                         <el-input v-model="account" placeholder="Please input your account" size="normal" clearable
@@ -129,6 +134,7 @@
                 <p>Current Version：Import</p>
                 <p>New User Version：<a href="https://ramseos.io/">https://ramseos.io/</a></p>
                 <p>TP Version：<a href="https://tp.ramseos.io/">https://tp.ramseos.io/</a></p>
+                <p>v20231222.001</p>
             </div>
         </div>
     </div>
@@ -223,7 +229,7 @@
             cacheKey: '_ot',
             accountInfo: {},
             isFinish: false,
-            mwContract: '',
+            mwContract: 'rams.eos',
             brcMemo: { "p": "eirc-20", "op": "mint", "tick": "rams", "amt": 10 },
             btnLoading: {
                 finished: false,
@@ -236,14 +242,14 @@
             totalSupply: 100000000,
             allMintNum: 0,
             showNode: false,
-            countdownText: '00:00:00'
+            countdownText: '21:00:00 GMT+8',
         },
         async created() {
             if (localStorage.getItem('node')) {
                 this.endpointApi = localStorage.getItem('node')
             }
-            this.countdown()
             this.rpc = new eosjs_jsonrpc.JsonRpc(this.endpointApi);
+            this.getAllMintNum()
             const data = localStorage.getItem(this.cacheKey)
             if (data) {
                 const decode = $.base64.decode(data)
@@ -299,7 +305,6 @@
                 this.step = 2
                 this.btnLoading.finished = false
                 this.getMintNum()
-                this.getAllMintNum()
             },
             async getAccountInfo() {
                 const result = await this.rpc.get_account(this.account)
@@ -493,7 +498,7 @@
                     lower_bound: this.account,
                     upper_bound: this.account,
                 });
-                this.suceessNum = result.rows && result.rows[0]?.mintcount || 0
+                this.suceessNum = result.rows && result.rows[0] && result.rows[0].mintcount
             },
             onCopy(text, showTip = true) {
                 console.log(text)
@@ -538,48 +543,40 @@
                     limit: 1,
                     code: this.mwContract,
                     scope: this.mwContract,
-                    table: 'mints',
-                    reverse: true
+                    table: 'status',
+                    reverse: true,
+                    lower_bound: '',
+                    upper_bound: '',
                 });
-                const mintNum = result.rows && result.rows[0]?.id || 0
+                const mintNum = result.rows && result.rows[0] && result.rows[0].minted || 0
                 this.allMintNum = mintNum
             },
             // 倒计时方法
             countdown() {
-                // 目标日期时间戳
-                const end = Date.parse(new Date('2023-12-22 21:00:00'))
-                // 当前时间戳
-                const nowdate = new Date()
-                let now = Date.parse(nowdate)
-                if (nowdate.getTimezoneOffset() != -480) {
-                    now = now - 480 * 60 + nowdate.getTimezoneOffset() * 60
+                const currentTime = new Date();
+                const targetTimeStr = new Date('Fri Dec 22 2023 21:00:00 GMT+0800').toLocaleString('en-US', {
+                    timeZone: 'Asia/Shanghai',
+                });
+                const targetTime = new Date(targetTimeStr);
+                const timeDifference = targetTime - currentTime;
+                if (timeDifference <= 0) {
+                    this.countdownText = '00:00:00'
+                    return
                 }
-                // 相差的毫秒数
-                const msec = end - now
+                let hour = Math.floor(timeDifference / (1000 * 60 * 60));
+                let minute = Math.floor((timeDifference / (1000 * 60)) % 60);
+                let second = Math.floor((timeDifference / 1000) % 60);
 
-                //   console.log(msec)
-                if (msec < 0) return
-
-                // 计算时分秒数
-                let hr = parseInt(msec / 1000 / 60 / 60)
-                let min = parseInt((msec / 1000 / 60) % 60)
-                let sec = parseInt((msec / 1000) % 60)
                 // 个位数前补零
-                const hour = hr > 9 ? hr : '0' + hr
-                const minute = min > 9 ? min : '0' + min
-                const second = sec > 9 ? sec : '0' + sec
+                hour = hour > 9 ? hour : '0' + hour
+                minute = minute > 9 ? minute : '0' + minute
+                second = second > 9 ? second : '0' + second
                 // 赋值
                 this.countdownText = `${hour}:${minute}:${second}`
-                if (min >= 0 && sec >= 0) {
-                    //倒计时结束关闭订单
-                    if (min == 0 && sec == 0) {
-                        return
-                    }
-                    // 一秒后递归
-                    setTimeout(() => {
-                        this.countdown()
-                    }, 1000)
-                }
+                // 一秒后递归
+                setTimeout(() => {
+                    this.countdown()
+                }, 1000)
             },
         },
         beforeDestroy() {
